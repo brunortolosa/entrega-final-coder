@@ -1,0 +1,681 @@
+{
+  "name": "Entrega Final",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ESQUEMA / BASE DE DATOS\ncampo\ttipo\tes_principal\tdetalles\nticket-id\tAutonumber\ttrue\tIdentificador único autogenerado por ticket\nuser-id\tSingle line text\tfalse\tIdentificador del usuario\nuser-email\tSingle line text\tfalse\tCorreo electrónico del usuario\nuser-msg\tLong text\tfalse\tMensaje original del usuario\nllm-respuesta\tAI text\tfalse\tRespuesta generada por IA (bajo demanda)\nestado\tSingle select\tfalse\t\"Opciones: pendiente, en revision, Aprobado por Humano, Procesado por IA\"\nFecha de creación\tDate (fórmula CREATED_TIME)\tfalse\tFecha en que se creó el registro\nÚltima modificación\tDate (fórmula LAST_MODIFIED_TIME)\tfalse\tFecha de la última modificación del registro\nComentarios internos\tLong text\tfalse\tNotas internas del equipo de soporte\n",
+        "height": 384,
+        "width": 464
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        352
+      ],
+      "id": "626d0095-2a0a-4275-9017-ae6f975ee179",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 15,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -224,
+        0
+      ],
+      "id": "9ba0da44-bab5-435b-879a-2c3c760f9d15",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TsXF4efVLIk5ff43",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1800
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        224,
+        176
+      ],
+      "id": "2d9117a8-f633-4689-8273-ebeca6f4963a",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "aRc9lwY4yH1ddqZ4",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Gmail Trigger').item.json.from.value[0].address }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        320,
+        176
+      ],
+      "id": "cb7c0ce8-4c98-49ea-bf2e-5b68ae81ebca",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BR3K7DWF4",
+          "mode": "list",
+          "cachedResultName": "nuevo-canal"
+        },
+        "text": "=ALERTA: Error en workflow - Revisar\nNodo: {{ $json.id }}\nWorkflow:{{ $workflow.name }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        656,
+        192
+      ],
+      "id": "e35b70dc-5c34-465e-ac89-34cf32f96738",
+      "name": "Notificar Error",
+      "webhookId": "62a417b3-effb-4145-9d3a-3109d0032237",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "aFsbXbOp9TPlssF2",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Gmail Trigger').item.json.text }}",
+        "options": {
+          "systemMessage": "Sos un asistente encargado de generar respuestas automáticas para consultas/reclamos de clientes y usuarios.\nEn base del mensaje del usuario genera una breve respuesta de máximo 250 caracteres.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "2117759f-ab91-4666-bb77-6b0a811be7fd",
+      "name": "Agente IA - Asistente a tickets de usuario",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "brunortolosa@gmail.com",
+        "subject": "=Aprobar Respuesta:  {{ $('Gmail Trigger').item.json.subject }}",
+        "message": "=Necesitamos aprobar esta respuesta a un usuario:\n{{ $json.output }}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Aceptar ",
+            "disapproveLabel": "Rechazar"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        592,
+        -96
+      ],
+      "id": "05aa2a8f-c3e5-4277-9335-dfcd075d2a98",
+      "name": "Send message and wait for response",
+      "webhookId": "bf1b7a3e-bcbc-4505-bb36-5dc395569b0c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TsXF4efVLIk5ff43",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b35ee753-5d46-4959-bcff-e8148f7ec66c",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        -96
+      ],
+      "id": "2af7711e-a0de-4671-b80a-8f6ec19094f4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "https://airtable.com/appE6nwPxPmX6ledG/tbl9WDgBgf1v5rcJJ/viwwHOVDpoEiyx6Gj?blocks=hide",
+          "mode": "url"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9WDgBgf1v5rcJJ",
+          "mode": "list",
+          "cachedResultName": "Tickets de Soporte",
+          "cachedResultUrl": "https://airtable.com/appE6nwPxPmX6ledG/tbl9WDgBgf1v5rcJJ"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "estado": "pendiente",
+            "user-msg": "={{ $json.text }}",
+            "user-email": "={{ $json.from.value[0].address }}",
+            "user-id": "={{ $json.from.value[0].name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ticket-id",
+              "displayName": "ticket-id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "user-id",
+              "displayName": "user-id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "user-email",
+              "displayName": "user-email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "user-msg",
+              "displayName": "user-msg",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "llm-respuesta",
+              "displayName": "llm-respuesta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "pendiente",
+                  "value": "pendiente"
+                },
+                {
+                  "name": "en revision",
+                  "value": "en revision"
+                },
+                {
+                  "name": "Aprobado por Humano",
+                  "value": "Aprobado por Humano"
+                },
+                {
+                  "name": "Procesado por IA",
+                  "value": "Procesado por IA"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de creación",
+              "displayName": "Fecha de creación",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Última modificación",
+              "displayName": "Última modificación",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Comentarios internos",
+              "displayName": "Comentarios internos",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "39b4a151-f500-4bc4-9c4c-8b15262fcfe4",
+      "name": "Create a record",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "yGYUlJ1AmlReD75y",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "https://airtable.com/appE6nwPxPmX6ledG/tbl9WDgBgf1v5rcJJ/viwwHOVDpoEiyx6Gj",
+          "mode": "url"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9WDgBgf1v5rcJJ",
+          "mode": "list",
+          "cachedResultName": "Tickets de Soporte",
+          "cachedResultUrl": "https://airtable.com/appE6nwPxPmX6ledG/tbl9WDgBgf1v5rcJJ"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Create a record').item.json.id }}",
+            "llm-respuesta": "={{ $('Agente IA - Asistente a tickets de usuario').item.json.output }}",
+            "estado": "Aprobado por Humano"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "ticket-id",
+              "displayName": "ticket-id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "user-id",
+              "displayName": "user-id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "user-email",
+              "displayName": "user-email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "user-msg",
+              "displayName": "user-msg",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "llm-respuesta",
+              "displayName": "llm-respuesta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "pendiente",
+                  "value": "pendiente"
+                },
+                {
+                  "name": "en revision",
+                  "value": "en revision"
+                },
+                {
+                  "name": "Aprobado por Humano",
+                  "value": "Aprobado por Humano"
+                },
+                {
+                  "name": "Procesado por IA",
+                  "value": "Procesado por IA"
+                },
+                {
+                  "name": "Desaprobado",
+                  "value": "Desaprobado"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de creación",
+              "displayName": "Fecha de creación",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Última modificación",
+              "displayName": "Última modificación",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Comentarios internos",
+              "displayName": "Comentarios internos",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        -192
+      ],
+      "id": "2a30b4aa-3820-411a-84a6-3680e4cf995a",
+      "name": "Actualizacion de Tabla",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "yGYUlJ1AmlReD75y",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "emailType": "text",
+        "message": "=<p>Hola,</p>\n\n<p>Recibimos tu solicitud: <b>{{ $('Gmail Trigger').item.json.headers.subject }}</b>.</p>\n\n<p>{{ $('Agente IA - Asistente a tickets de usuario').item.json.output }}</p>\n\n<p>Tu ticket fue registrado y derivado al área correspondiente. Te contactaremos a la brevedad.</p>\n\n<p>Saludos,<br>Equipo de Soporte Técnico</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        -192
+      ],
+      "id": "92f36973-d355-4bb0-904b-8bdb7390b0b4",
+      "name": "Responder al Solicitante",
+      "webhookId": "d66abc59-b710-4675-a8b5-25f1c2812f8b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TsXF4efVLIk5ff43",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente IA - Asistente a tickets de usuario",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente IA - Asistente a tickets de usuario",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente IA - Asistente a tickets de usuario": {
+      "main": [
+        [
+          {
+            "node": "Send message and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notificar Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message and wait for response": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Actualizacion de Tabla",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create a record": {
+      "main": [
+        [
+          {
+            "node": "Agente IA - Asistente a tickets de usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizacion de Tabla": {
+      "main": [
+        [
+          {
+            "node": "Responder al Solicitante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "27092d83-9f18-4486-8e10-7f6203d4fdc0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "80e19e6603554f32e4473a32ae51154c32f4987cefcec336f1c8ad1f8c986425"
+  },
+  "nodeGroups": [],
+  "id": "rlD1m2UJbFqbXcDa",
+  "tags": []
+}
